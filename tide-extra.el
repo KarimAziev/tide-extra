@@ -299,6 +299,7 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
     ("r" "Rename symbol" tide-rename-symbol)
     ("F" "Rename file" tide-rename-file)
     ("R" "Refactor" tide-refactor)
+    (";" "Insert Jsdoc template" tide-jsdoc-template)
     ("d" "Documentation at point"
      tide-documentation-at-point)]
    ["Setup"
