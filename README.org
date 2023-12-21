@@ -1,0 +1,75 @@
+#+OPTIONS: ^:nil tags:nil num:nil
+
+* About
+
+Misc utils for [[https://github.com/ananthakumaran/tide][tide.el]].
+
+* Table of Contents                                       :TOC_2_gh:QUOTE:
+#+BEGIN_QUOTE
+- [[#about][About]]
+- [[#requirements][Requirements]]
+- [[#installation][Installation]]
+  - [[#with-use-package-and-straightel][With use-package and straight.el]]
+  - [[#manual-installation][Manual installation]]
+- [[#usage][Usage]]
+  - [[#transient][Transient]]
+  - [[#commands][Commands]]
+  - [[#customization][Customization]]
+#+END_QUOTE
+
+* Requirements
+
+| Name        | Version |
+|-------------+---------|
+| Emacs       |    29.1 |
+| ~tide~      |   5.1.3 |
+| ~transient~ |   0.4.1 |
+
+
+* Installation
+
+** With use-package and straight.el
+#+begin_src elisp :eval no
+(use-package tide-extra
+  :straight (tide-extra
+             :repo "KarimAziev/tide-extra"
+             :type git
+             :host github)
+  :commands (tide-extra-setup-tide-mode
+             tide-extra-counsel-imenu
+             tide-extra-jump-to-definition-in-other-window))
+#+end_src
+
+** Manual installation
+
+Download the source code and put it wherever you like, e.g. into =~/.emacs.d/tide-extra/=
+
+#+begin_src shell :eval no
+git clone https://github.com/KarimAziev/tide-extra.git ~/.emacs.d/tide-extra/
+#+end_src
+
+Add the downloaded directory to the load path:
+
+#+begin_src elisp :eval no
+(add-to-list 'load-path "~/.emacs.d/tide-extra/")
+(require 'tide-extra)
+#+end_src
+
+* Usage
+
+** Transient
+
+**** ~tide-extra-menu~
+Command dispatcher for tide related commands.
+** Commands
+
+**** ~tide-extra-setup-tide-mode~
+Setup tide mode.
+**** ~tide-extra-counsel-imenu~
+Set up Tide's imenu index function and enable =auto-rescan= if not already done.
+**** ~tide-extra-jump-to-definition-in-other-window~  (&optional arg)
+Jump to the definition of the symbol at point in another window. If pointed at an abstract member-declaration, will proceed to look for implementations. When invoked with a prefix =arg=. jump to the type definition.
+** Customization
+
+**** ~tide-extra-transient-suffixes~
+Custom suffixes to add in transient prefix =tide-extra-menu=.
