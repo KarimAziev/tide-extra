@@ -266,17 +266,17 @@
 If pointed at an abstract member-declaration, will proceed to look for
 implementations.  When invoked with a prefix ARG, jump to the type definition."
   (interactive "P")
-  (let ((buff (current-buffer))
+  (let ((pos (point))
+        (buff (current-buffer))
         (owind
          (let ((wind (selected-window)))
            (or
             (window-right wind)
             (window-left wind)
-            (progn (split-window-sensibly)
-                   (or (window-right wind)
-                       (window-left wind)))))))
+            (split-window-right)))))
     (select-window owind t)
     (pop-to-buffer-same-window buff t)
+    (goto-char pos)
     (tide-jump-to-definition arg)))
 
 (defun tide-extra-setup-tide-imenu ()
