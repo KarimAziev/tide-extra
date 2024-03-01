@@ -333,7 +333,7 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
    [:setup-children
     (lambda (_args)
       (transient-parse-suffixes
-       transient--prefix
+       (oref transient--prefix command)
        (apply #'vector
               (tide-extra-map-suffixes))))]])
 
