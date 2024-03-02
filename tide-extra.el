@@ -335,7 +335,8 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
       (transient-parse-suffixes
        (oref transient--prefix command)
        (apply #'vector
-              (tide-extra-map-suffixes))))]])
+              (tide-extra-map-suffixes))))
+    :class transient-column]])
 
 (defun tide-extra-run-in-buffer (buffer fn &rest args)
   "Apply FN with ARGS in BUFFER if it is live."
