@@ -231,6 +231,41 @@
                      (symbol :tag "Symbol")
                      (sexp :tag "Sexp")))))))
 
+(defcustom tide-extra-disable-functions '(tide-extra-not-file-p
+                                          tide-extra-temp-buffer-p
+                                          tide-extra-in-snippets-p
+                                          tide-extra-vue-project-p)
+  "List of functions to determine if `tide-mode' should be disabled.
+
+A list of functions to determine if `tide-mode' should be disabled in
+the current buffer.
+
+Each function in the list is called with no arguments, and if any
+function returns non-nil, `tide-mode' will not be enabled. This can
+be useful for excluding certain buffers or conditions where `tide-mode'
+is not desired.
+
+The default functions check for non-file buffers, temporary buffers,
+buffers within snippets, and Vue.js project files."
+  :group 'tide-extra
+  :type '(hook :options
+          (tide-extra-not-file-p
+           tide-extra-temp-buffer-p
+           tide-extra-in-snippets-p
+           tide-extra-vue-project-p)))
+
+(defcustom tide-extra-after-disable-hook nil
+  "A hook that runs after disabling setup of Tide mode.
+
+This hook is executed only if all functions in
+`tide-extra-disable-functions' return non-nil. Each function in
+the hook should take no arguments and is called with no
+arguments. This can be used to perform additional cleanup or
+custom actions after Tide mode is disabled."
+  :group 'tide-extra
+  :type 'hook)
+
+
 (defun tide-extra-map-suffixes ()
   "Map and filter suffixes based on library requirements."
   (delq nil
@@ -359,18 +394,11 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
 (defun tide-extra-setup-tide-mode ()
   "Setup tide mode."
   (interactive)
-  (unless (or (not buffer-file-name)
-              (string= "*temp*" (string-trim
-                                 (buffer-name)))
-              (when-let ((snippets-dirs
-                          (when (fboundp 'yas-snippet-dirs)
-                            (yas-snippet-dirs))))
-                (if (= 1 (length snippets-dirs))
-                    (file-in-directory-p default-directory
-                                         (car snippets-dirs))
-                  (seq-find (apply-partially #'file-in-directory-p
-                                             default-directory)
-                            snippets-dirs))))
+  (if (run-hook-wrapped
+       'tide-extra-disable-functions
+       (lambda (fun)
+         (funcall fun)))
+      (run-hooks 'tide-extra-after-disable-hook)
     (require 'flycheck nil t)
     (require 'company nil t)
     (let ((buff (current-buffer)))
@@ -400,15 +428,178 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
                       #'tide-extra-run-in-buffer
                       buff
                       'tide-extra-setup-tide-imenu))))
+
+(defun tide-extra--get-project-root ()
+  "Find the root directory of an npm project."
+  (locate-dominating-file default-directory "package.json"))
+
+(defun tide-extra--json-parse-string (str &optional object-type array-type null-object
+                                    false-object)
+  "Parse JSON from string with customizable types.
+
+Argument STR is a JSON string to parse.
+
+Optional argument OBJECT-TYPE specifies the Lisp type to represent JSON objects;
+defaults to `alist'.
+
+Optional argument ARRAY-TYPE specifies the Lisp type to represent JSON arrays;
+defaults to `array'.
+
+Optional argument NULL-OBJECT specifies the Lisp object to represent JSON null;
+defaults to :null.
+
+Optional argument FALSE-OBJECT specifies the Lisp object to represent JSON
+false; defaults to :false."
+  (if (and (fboundp 'json-parse-string)
+           (fboundp 'json-available-p)
+           (json-available-p))
+      (json-parse-string str
+                         :object-type (or object-type 'alist)
+                         :array-type
+                         (pcase array-type
+                           ('list 'list)
+                           ('vector 'array)
+                           (_ 'array))
+                         :null-object (or null-object :null)
+                         :false-object (or false-object :false))
+    (require 'json)
+    (let ((json-object-type (or object-type 'alist))
+          (json-array-type
+           (pcase array-type
+             ('list 'list)
+             ('array 'vector)
+             (_ 'vector)))
+          (json-null (or null-object :null))
+          (json-false (or false-object :false)))
+      (json-read-from-string str))))
+
+(defun tide-extra--json-read-buffer (&optional object-type array-type
+                                               null-object false-object)
+  "Parse JSON from buffer using specified types.
+
+Optional argument OBJECT-TYPE is the type used to represent objects; it can be
+`hash-table', `alist' or `plist'. It defaults to `alist'.
+
+Optional argument ARRAY-TYPE specifies which Lisp type is used to represent
+arrays; it can be `list' or `vector'. It defaults to `vector'.
+
+Optional argument NULL-OBJECT specifies which object to use to represent a JSON
+null value. It defaults to `:null'.
+
+Optional argument FALSE-OBJECT specifies which object to use to represent a JSON
+false value. It defaults to `:false'."
+  (if (and (fboundp 'json-parse-string)
+           (fboundp 'json-available-p)
+           (json-available-p))
+      (json-parse-buffer
+       :object-type (or object-type 'alist)
+       :array-type
+       (pcase array-type
+         ('list 'list)
+         ('vector 'array)
+         (_ 'array))
+       :null-object (or null-object :null)
+       :false-object (or false-object :false))
+    (let ((json-object-type (or object-type 'alist))
+          (json-array-type
+           (pcase array-type
+             ('list 'list)
+             ('array 'vector)
+             (_ 'vector)))
+          (json-null (or null-object :null))
+          (json-false (or false-object :false)))
+      (json-read))))
+
+
+
+(defvar tide-extra--json-hash (make-hash-table :test 'equal))
+
+(defun tide-extra--read-json (file &optional json-type)
+  "Parse JSON from FILE and cache it.
+
+Argument FILE is the path to the JSON file to read.
+
+Optional argument JSON-TYPE specifies the type used to represent objects in the
+returned JSON; it defaults to `alist'."
+  (condition-case nil
+      (let* ((json-object-type (or json-type 'alist))
+             (json-array-type 'list)
+             (cache (gethash (format "%s:%s" file json-object-type)
+                             tide-extra--json-hash))
+             (cache-tick (and cache (plist-get cache :tick)))
+             (tick (file-attribute-modification-time
+                    (file-attributes
+                     file
+                     'string)))
+             (content-json))
+        (when (or (null cache)
+                  (not (equal tick cache-tick)))
+          (setq content-json
+                (with-temp-buffer
+                  (insert-file-contents file)
+                  (tide-extra--json-parse-string
+                   (buffer-string)
+                   'alist
+                   'list)))
+          (setq cache (list
+                       :tick tick
+                       :json content-json))
+          (puthash file cache tide-extra--json-hash))
+        (plist-get cache :json))
+    (error (message "Could't read %s as json" file))))
+
+(defun tide-extra--get-package-json-path ()
+  "Find and return the path to `package.json'."
+  (when-let ((project-root (tide-extra--get-project-root)))
+    (expand-file-name "package.json" project-root)))
+
+(defun tide-extra--get-package-json-alist ()
+  "Fetch and parse package.json as an alist."
+  (when-let ((package-json-file (tide-extra--get-package-json-path)))
+    (ignore-errors (tide-extra--read-json package-json-file
+                                          'alist))))
+
+(defun tide-extra-vue-project-p ()
+  "Determine if the current project contain Vue.js files or dependencies."
+  (if-let ((pr (project-current nil)))
+      (seq-find (lambda (it)
+                  (when-let ((ext (file-name-extension it)))
+                    (string= ext "vue")))
+                (project-files pr))
+    (let* ((package-json-alist (tide-extra--get-package-json-alist))
+           (dependencies (cdr (assq 'dependencies package-json-alist))))
+      (assq 'vue dependencies))))
+
+
+(defun tide-extra-temp-buffer-p ()
+  "Check if the current buffer's name start with \" *temp*\"."
+  (string-prefix-p
+   " *temp*"
+   (buffer-name)))
+
+(defun tide-extra-in-snippets-p ()
+  "Check if the current directory is within any of the snippet directories."
+  (let ((snippets-dirs
+         (when (fboundp 'yas-snippet-dirs)
+           (yas-snippet-dirs))))
+    (if (= 1 (length snippets-dirs))
+        (file-in-directory-p default-directory
+                             (car snippets-dirs))
+      (seq-find (apply-partially #'file-in-directory-p
+                                 default-directory)
+                snippets-dirs))))
+
+(defun tide-extra-not-file-p ()
+  "Return non-nil if the current buffer is not associated with a file."
+  (not buffer-file-name))
+
+;;;###autoload
+(defun tide-extra-setup-lsp-for-vue ()
+  "Set up LSP if in a Vue project, otherwise set up Tide mode."
+  (when (and (tide-extra-vue-project-p)
+             (fboundp 'lsp-deferred))
+    (lsp-deferred)))
+
+
 (provide 'tide-extra)
 ;;; tide-extra.el ends here
-
-
-
-
-
-
-
-
-
-
