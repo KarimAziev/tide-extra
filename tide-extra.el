@@ -36,6 +36,8 @@
 (require 'tide)
 (require 'transient)
 
+(declare-function lsp-deferred "lsp-mode")
+
 (defcustom tide-extra-transient-suffixes nil
   "Extra suffixes to add in `tide-extra-menu'."
   :group 'tide-extra
@@ -340,7 +342,7 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
    ["Setup"
     ("v" "Verify setup" tide-verify-setup)
     ("l" "List servers" tide-list-servers)
-    ("s" "Restart server" tide-restart-server)
+    ("R" "Restart server" tide-restart-server)
     ("k" "Kill server" tide-kill-server :inapt-if-not tide-current-server)]
    ["References"
     ("e" "References" tide-references)
@@ -597,7 +599,7 @@ returned JSON; it defaults to `alist'."
 (defun tide-extra-setup-lsp-for-vue ()
   "Set up LSP if in a Vue project, otherwise set up Tide mode."
   (when (and (tide-extra-vue-project-p)
-             (fboundp 'lsp-deferred))
+             (require 'lsp-mode nil t))
     (lsp-deferred)))
 
 
