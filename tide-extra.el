@@ -392,6 +392,13 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
   (when (fboundp 'counsel-imenu)
     (funcall-interactively #'counsel-imenu)))
 
+(defun tide-extra-setup-multi-line-comments ()
+  "Set up multi-line comment syntax for the current buffer."
+  (setq-local comment-start "/** "
+              comment-end " */"
+              comment-style 'extra-line
+              comment-continue " * "))
+
 ;;;###autoload
 (defun tide-extra-setup-tide-mode ()
   "Setup tide mode."
@@ -404,10 +411,7 @@ implementations.  When invoked with a prefix ARG, jump to the type definition."
     (require 'flycheck nil t)
     (require 'company nil t)
     (let ((buff (current-buffer)))
-      (setq-local comment-start "/** "
-                  comment-end " */"
-                  comment-style 'extra-line
-                  comment-continue " * ")
+      (tide-extra-setup-multi-line-comments)
       (unless (stringp buffer-file-name)
         (setq tide-require-manual-setup t))
       (add-hook 'eldoc-documentation-functions #'tide-eldoc-function nil t)
