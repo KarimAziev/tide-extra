@@ -556,20 +556,20 @@ returned JSON; it defaults to `alist'."
 
 (defun tide-extra--get-package-json-path ()
   "Find and return the path to `package.json'."
-  (when-let ((project-root (tide-extra--get-project-root)))
+  (when-let* ((project-root (tide-extra--get-project-root)))
     (expand-file-name "package.json" project-root)))
 
 (defun tide-extra--get-package-json-alist ()
   "Fetch and parse package.json as an alist."
-  (when-let ((package-json-file (tide-extra--get-package-json-path)))
+  (when-let* ((package-json-file (tide-extra--get-package-json-path)))
     (ignore-errors (tide-extra--read-json package-json-file
                                           'alist))))
 
 (defun tide-extra-vue-project-p ()
   "Determine if the current project contain Vue.js files or dependencies."
-  (if-let ((pr (project-current nil)))
+  (if-let* ((pr (project-current nil)))
       (seq-find (lambda (it)
-                  (when-let ((ext (file-name-extension it)))
+                  (when-let* ((ext (file-name-extension it)))
                     (string= ext "vue")))
                 (project-files pr))
     (let* ((package-json-alist (tide-extra--get-package-json-alist))
